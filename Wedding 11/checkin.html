@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>K&N Wedding — Guest Check-in</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --green: #0F2D24; --gold: #C9A84C; --purple: #2D1B4E;
+  --cream: #FDFBF5; --red: #7B1A1A; --sage: #1B4D3E;
+}
+body { font-family: Arial, sans-serif; background: #f0ece4; min-height: 100vh; display: flex; flex-direction: column; }
+.header { background: var(--green); padding: 18px 24px; text-align: center; }
+.header-title { font-family: Georgia, serif; font-size: 22px; font-style: italic; font-weight: 300; color: var(--gold); margin-bottom: 2px; }
+.header-sub { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: rgba(201,168,76,0.55); }
+.card { width: 100%; max-width: 440px; margin: 20px auto; padding: 0 14px; flex: 1; }
+.loading { text-align: center; padding: 60px 0; color: #999; font-size: 14px; }
+.spinner { width: 36px; height: 36px; border: 3px solid #ddd; border-top-color: var(--gold); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 14px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.guest-card { background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 20px rgba(0,0,0,0.1); }
+.guest-card-top { background: var(--green); padding: 22px 22px 18px; }
+.vip-badge { display: inline-flex; align-items: center; gap: 6px; background: var(--gold); color: #fff; font-size: 12px; font-weight: bold; padding: 5px 14px; border-radius: 20px; margin-bottom: 10px; letter-spacing: 0.3px; }
+.guest-name { font-family: Georgia, serif; font-size: 26px; font-weight: 300; font-style: italic; color: var(--gold); line-height: 1.2; margin-bottom: 4px; }
+.guest-uid { font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: rgba(201,168,76,0.45); }
+.table-block { background: rgba(201,168,76,0.12); border: 1px solid rgba(201,168,76,0.3); border-radius: 6px; padding: 12px 16px; margin: 14px 16px 0; display: flex; align-items: center; gap: 10px; }
+.table-label { font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--gold); font-weight: bold; flex-shrink: 0; }
+.table-value { font-family: Georgia, serif; font-size: 20px; color: var(--green); font-weight: 400; }
+.detail-list { padding: 14px 16px; display: flex; flex-direction: column; }
+.detail-row { display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; border-bottom: 0.5px solid #f0ece4; }
+.detail-row:last-child { border-bottom: none; }
+.detail-lbl { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: #aaa; width: 90px; flex-shrink: 0; padding-top: 2px; }
+.detail-val { font-size: 14px; color: var(--purple); line-height: 1.4; }
+.plus-one-yes { color: var(--sage); font-weight: bold; }
+.plus-one-no { color: #aaa; }
+.status-block { padding: 16px; border-top: 1px solid #f0ece4; display: flex; align-items: center; gap: 12px; }
+.status-block.ok { background: #f0fdf4; border-top-color: #bbf7d0; }
+.status-block.warn { background: #fff7f0; border-top-color: #fecaca; }
+.status-icon { font-size: 28px; flex-shrink: 0; }
+.status-title { font-size: 15px; font-weight: bold; margin-bottom: 2px; }
+.status-block.ok .status-title { color: #166534; }
+.status-block.warn .status-title { color: var(--red); }
+.status-sub { font-size: 13px; color: #777; }
+.checkin-btn { width: 100%; padding: 16px; background: var(--sage); color: var(--gold); border: none; font-size: 14px; font-weight: bold; letter-spacing: 1.5px; text-transform: uppercase; cursor: pointer; transition: background 0.2s; border-radius: 0 0 8px 8px; }
+.checkin-btn:hover { background: var(--green); }
+.error-card, .notfound-card { background: #fff; border-radius: 8px; padding: 40px 20px; text-align: center; box-shadow: 0 2px 20px rgba(0,0,0,0.08); }
+.error-title { font-family: Georgia, serif; font-size: 20px; color: var(--red); margin-bottom: 8px; }
+.error-sub { font-size: 14px; color: #888; line-height: 1.7; }
+.footer { text-align: center; padding: 16px; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: #bbb; }
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="header-title">Kelechi &amp; Nengi</div>
+  <div class="header-sub">July 18, 2026 &middot; Guest Check-in</div>
+</div>
+<div class="card" id="app">
+  <div class="loading"><div class="spinner"></div>Looking up guest...</div>
+</div>
+<div class="footer">#11DaysLoveStory</div>
+
+<script>
+var SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxa8F0EJZyZWqdjSA93vwjpJfHMBxpZUDtJjC0ubrIeyg7pwcjxwutdo-8SZWPNOkUa/exec';
+var guestId = null;
+
+function getParam(n) { return new URLSearchParams(window.location.search).get(n); }
+function render(h) { document.getElementById('app').innerHTML = h; }
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// Use script tag injection (JSONP) — works on all browsers including iOS Safari
+function callAPI(action, id, onSuccess) {
+  var cbName = 'cb_' + Math.random().toString(36).slice(2);
+  var s = document.createElement('script');
+  var done = false;
+
+  var timer = setTimeout(function() {
+    if (done) return;
+    done = true;
+    cleanup();
+    render('<div class="error-card"><div style="font-size:44px;margin-bottom:12px">&#9888;&#65039;</div><div class="error-title">Connection failed</div><div class="error-sub">Could not reach the guest list.<br>Please check your internet and try again, or check in manually.</div></div>');
+  }, 12000);
+
+  window[cbName] = function(data) {
+    if (done) return;
+    done = true;
+    cleanup();
+    onSuccess(data);
+  };
+
+  function cleanup() {
+    clearTimeout(timer);
+    delete window[cbName];
+    if (s.parentNode) s.parentNode.removeChild(s);
+  }
+
+  s.onerror = function() {
+    if (done) return;
+    done = true;
+    cleanup();
+    render('<div class="error-card"><div style="font-size:44px;margin-bottom:12px">&#9888;&#65039;</div><div class="error-title">Connection failed</div><div class="error-sub">Could not reach the guest list.<br>Please check your internet and try again, or check in manually.</div></div>');
+  };
+
+  s.src = SCRIPT_URL + '?action=' + encodeURIComponent(action) + '&id=' + encodeURIComponent(id) + '&callback=' + cbName;
+  document.head.appendChild(s);
+}
+
+function row(lbl, val) {
+  return '<div class="detail-row"><span class="detail-lbl">' + esc(lbl) + '</span><span class="detail-val">' + esc(val) + '</span></div>';
+}
+
+function buildCard(data, actionBlock) {
+  var vip = data.isVIP ? '<div class="vip-badge">&#11088; VIP Guest</div><br>' : '';
+  var tableHtml = '<div class="table-block"><span class="table-label">Table</span><span class="table-value">' + (data.table ? esc(data.table) : '<span style="font-size:14px;color:rgba(15,45,36,0.4);font-style:italic;font-family:Arial,sans-serif">Not yet assigned</span>') + '</span></div>';
+
+  var plusOneVal = (data.plusOne === true || data.plusOne === 'true')
+    ? '<span class="plus-one-yes">Yes' + (data.plusOneName ? ' &mdash; ' + esc(data.plusOneName) : '') + '</span>'
+    : '<span class="plus-one-no">No</span>';
+
+  var rows = '';
+  if (data.guestOf)   rows += row('Guest of',  data.guestOf);
+  rows += '<div class="detail-row"><span class="detail-lbl">Plus one</span><span class="detail-val">' + plusOneVal + '</span></div>';
+  if (data.notes)     rows += row('Dietary',   data.notes);
+
+  return '<div class="guest-card">'
+    + '<div class="guest-card-top">' + vip
+    + '<div class="guest-name">' + esc(data.firstName) + ' ' + esc(data.lastName) + '</div>'
+    + '<div class="guest-uid">ID &nbsp; ' + esc(guestId.substring(0,8).toUpperCase()) + '</div>'
+    + '</div>'
+    + tableHtml
+    + '<div class="detail-list">' + rows + '</div>'
+    + actionBlock
+    + '</div>';
+}
+
+function showGuest(data) {
+  var action = '';
+  if (data.status === 'already_checked_in') {
+    action = '<div class="status-block warn"><div class="status-icon">&#128683;</div><div><div class="status-title">Already checked in</div><div class="status-sub">Checked in at ' + esc(data.checkinTime) + '</div></div></div>';
+  } else if (data.status === 'checked_in') {
+    action = '<div class="status-block ok"><div class="status-icon">&#9989;</div><div><div class="status-title">Checked in successfully</div><div class="status-sub">At ' + esc(data.checkinTime) + '</div></div></div>';
+  } else {
+    action = '<button class="checkin-btn" id="checkin-btn" onclick="doCheckin()">&#10003; &nbsp; Check In Guest</button>';
+  }
+  render(buildCard(data, action));
+}
+
+function doCheckin() {
+  var btn = document.getElementById('checkin-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Checking in...'; }
+  callAPI('checkin', guestId, function(data) { showGuest(data); });
+}
+
+// INIT
+guestId = getParam('id');
+if (!guestId) {
+  render('<div class="notfound-card"><div style="font-size:44px;margin-bottom:12px">&#127915;</div><div style="font-size:20px;color:#333;margin-bottom:8px">No guest ID</div><div style="font-size:14px;color:#888">This page is opened by scanning a guest QR code.</div></div>');
+} else {
+  callAPI('lookup', guestId, function(data) {
+    if (data.error) {
+      render('<div class="notfound-card"><div style="font-size:44px;margin-bottom:12px">&#10067;</div><div style="font-size:20px;color:#333;margin-bottom:8px">Guest not found</div><div style="font-size:14px;color:#888;line-height:1.7">This QR code is not recognised.<br>Please check in manually.</div></div>');
+    } else {
+      showGuest(data);
+    }
+  });
+}
+</script>
+</body>
+</html>
